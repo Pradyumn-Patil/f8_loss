@@ -194,6 +194,7 @@ class EventType(Enum):
     LOSS_DIRECTION = "loss_direction"
     RECOVERY = "recovery"
     BOUNDARY_VIOLATION = "boundary"
+    BALL_BEHIND_PLAYER = "ball_behind"  # Ball stays behind player relative to movement
 
 
 class DrillPhase(Enum):
@@ -300,6 +301,18 @@ class FrameData:
     drill_direction: Optional[DrillDirection] = None
     lap_count: int = 0  # Number of completed laps
 
+    # Hip position (for ball-behind detection)
+    hip_x: Optional[float] = None  # Hip pixel X coordinate
+    hip_y: Optional[float] = None  # Hip pixel Y coordinate
+
+    # Ball position relative to player (for ball-behind detection)
+    player_movement_direction: Optional[str] = None  # "LEFT", "RIGHT", or None
+    ball_behind_player: Optional[bool] = None  # True if ball is behind player
+    in_turning_zone: Optional[str] = None  # "START", "GATE2", or None
+
+    # Ball tracking quality (for filtering false positives)
+    ball_interpolated: bool = False  # True if ball position is interpolated (not real detection)
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for DataFrame."""
         result = {
@@ -328,6 +341,19 @@ class FrameData:
         if self.drill_direction is not None:
             result['drill_direction'] = self.drill_direction.value
         result['lap_count'] = self.lap_count
+
+        # Add hip/ball-behind fields if present
+        if self.hip_x is not None:
+            result['hip_x'] = self.hip_x
+        if self.hip_y is not None:
+            result['hip_y'] = self.hip_y
+        if self.player_movement_direction is not None:
+            result['player_movement_direction'] = self.player_movement_direction
+        if self.ball_behind_player is not None:
+            result['ball_behind_player'] = self.ball_behind_player
+        if self.in_turning_zone is not None:
+            result['in_turning_zone'] = self.in_turning_zone
+
         return result
 
 

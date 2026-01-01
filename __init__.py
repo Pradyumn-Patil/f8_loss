@@ -91,6 +91,8 @@ from .detection.data_loader import (
     # JSON cone loading
     load_cone_annotations,
     EXPECTED_CONE_ROLES,
+    # Video metadata
+    get_video_fps,
 )
 
 # Figure-8 cone detection
@@ -174,6 +176,8 @@ __all__ = [
     # JSON cone loading
     'load_cone_annotations',
     'EXPECTED_CONE_ROLES',
+    # Video metadata
+    'get_video_fps',
     # Figure-8 detection
     'Figure8ConeDetector',
     # Detection

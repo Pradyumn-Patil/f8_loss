@@ -1,29 +1,29 @@
-player_name,event_number,loss_start_time,loss_end_time,notes
-abdullah_nasib,1,23.5,28.5,Overshot past start cone - went out of frame
-ali_buraq,1,33,34,Overshot moving to start cones - missed turn
-archie_post,1,7,8.5,Overshoots turn - too long turning radius
-arjun_mital,1,34.5,36,Overstopped - ball moved up inside G1 while returning from turn
-arsen_said,1,15,17.5,Overshot diagonally at gate - stopped ball to get back on track
-ava_peklar,0,,,No loss - perfect control
-cayden_kuforji,1,32,34,Stumbled - ball caught between legs and launched when returning to start
-dameil_mendez,1,24,25,Ball stuck between feet and stopped while dribbling
-dylan_white,1,26,28,Ball stuck inside foot - player moved ahead of ball
-frederic_charbel,1,8,12,Over touched at last cone turn - went far from camera
-haeley_anzaldo,0,,,No loss - perfect control
-ismaail_ahmend,1,24,25,Ball stumbled at start cone turn - rolled toward camera instead of forward
-lucas_correvon,1,33,34.5,Overshot at gate - ball went diagonally toward camera
-marwan_elazzouzi,1,7,8,Overshot at turn - exited frame at end of G2
-maximillian_hall,1,29,31,Missed turn cone - ball rolled away after passing gate
-maxwell_ross,1,8,11,Dribbled out of frame at last cone - missed turn
-mike_basmadijan,1,13,14.5,Ball stuck between legs - player moved forward but ball stayed back
-miles_logon,1,31.5,35,After turn overshot - went far diagonally from camera
-naomi_item,1,5,7,Over touch at G2 - ball rolled far from camera
-noah_whyte,1,28.5,32,Ball touched cone at end turn - lost control and went far from camera
-oliver_walsh,0,,,No loss - hit cone but maintained control
-ollie_keefe,1,6.5,8,Missed gate - ball went out of bounds
-omar_tariqu,1,33.5,36,Slight miss control after G2 - ball rolled toward camera
-oscar_turner,1,29,31,Overshot before G2 - lost control before turn and went outside view
-poppy_henwoof,1,26,29,Bounced off end cone and rolled away outside
-riley_clemence,1,17.5,18.5,Hit last cone and went out of bounds
-shayne_saldanha,1,32,33,Missed turn and went out of bounds
-sonny_spicer,1,29,30,Lost control and over-corrected toward camera - missed gate after turn
+player_name     , event_number, loss_start_time, loss_end_time, notes
+abdullah_nasib  ,            1,            23.5,          28.5, Overshot past start cone - went out of frame
+ali_buraq       ,            1,            33  ,          34  , Overshot moving to start cones - missed turn
+archie_post     ,            1,             7  ,           8.5, Overshoots turn - too long turning radius
+arjun_mital     ,            1,            34.5,          36  , Overstopped - ball moved up inside G1 while returning from turn
+arsen_said      ,            1,            15  ,          17.5, Overshot diagonally at gate - stopped ball to get back on track
+ava_peklar      ,            0,                ,              , No loss - perfect control
+cayden_kuforji  ,            1,            32  ,          34  , Stumbled - ball caught between legs and launched when returning to start
+dameil_mendez   ,            1,            24  ,          25  , Ball stuck between feet and stopped while dribbling
+dylan_white     ,            1,            26  ,          28  , Ball stuck inside foot - player moved ahead of ball
+frederic_charbel,            1,             8  ,          12  , Over touched at last cone turn - went far from camera
+haeley_anzaldo  ,            0,                ,              , No loss - perfect control
+ismaail_ahmend  ,            1,            24  ,          25  , Ball stumbled at start cone turn - rolled toward camera instead of forward
+lucas_correvon  ,            1,            33  ,          34.5, Overshot at gate - ball went diagonally toward camera
+marwan_elazzouzi,            1,             7  ,           8  , Overshot at turn - exited frame at end of G2
+maximillian_hall,            1,            29  ,          31  , Missed turn cone - ball rolled away after passing gate
+maxwell_ross    ,            1,             8  ,          11  , Dribbled out of frame at last cone - missed turn
+mike_basmadijan ,            1,            13  ,          14.5, Ball stuck between legs - player moved forward but ball stayed back
+miles_logon     ,            1,            31.5,          35  , After turn overshot - went far diagonally from camera
+naomi_item      ,            1,             5  ,           7  , Over touch at G2 - ball rolled far from camera
+noah_whyte      ,            1,            28.5,          32  , Ball touched cone at end turn - lost control and went far from camera
+oliver_walsh    ,            0,                ,              , No loss - hit cone but maintained control
+ollie_keefe     ,            1,             6.5,           8  , Missed gate - ball went out of bounds
+omar_tariqu     ,            1,            33.5,          36  , Slight miss control after G2 - ball rolled toward camera
+oscar_turner    ,            1,            29  ,          31  , Overshot before G2 - lost control before turn and went outside view
+poppy_henwoof   ,            1,            26  ,          29  , Bounced off end cone and rolled away outside
+riley_clemence  ,            1,            17.5,          18.5, Hit last cone and went out of bounds
+shayne_saldanha ,            1,            32  ,          33  , Missed turn and went out of bounds
+sonny_spicer    ,            1,            29  ,          30  , Lost control and over-corrected toward camera - missed gate after turn

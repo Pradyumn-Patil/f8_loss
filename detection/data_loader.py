@@ -9,6 +9,7 @@ Key functions:
 - load_parquet_data(): Load parquet files (ball, pose)
 - extract_ankle_positions(): Filter pose data to ankles only
 - get_closest_ankle_per_frame(): Find nearest ankle to ball per frame
+- get_video_fps(): Read actual FPS from video file
 """
 import json
 import logging
@@ -16,6 +17,13 @@ from pathlib import Path
 from typing import Tuple, Optional, List
 import pandas as pd
 import numpy as np
+
+# OpenCV import for video FPS reading (optional)
+try:
+    import cv2
+    HAS_OPENCV = True
+except ImportError:
+    HAS_OPENCV = False
 
 from .data_structures import Figure8Layout
 
@@ -26,6 +34,63 @@ ANKLE_KEYPOINTS = ['left_ankle', 'right_ankle']
 
 # Expected cone roles in JSON annotation
 EXPECTED_CONE_ROLES = ['start', 'gate1_left', 'gate1_right', 'gate2_left', 'gate2_right']
+
+# Default FPS fallback when video cannot be read
+DEFAULT_FPS = 30.0
+
+
+# =============================================================================
+# VIDEO METADATA
+# =============================================================================
+
+def get_video_fps(video_path: str, default_fps: float = DEFAULT_FPS) -> float:
+    """
+    Read actual FPS from a video file.
+
+    This ensures timestamps are accurate regardless of whether the video
+    was recorded at 25fps, 30fps, or other frame rates.
+
+    Args:
+        video_path: Path to the video file
+        default_fps: Fallback FPS if video cannot be read (default: 30.0)
+
+    Returns:
+        FPS value from video, or default_fps if unable to read
+    """
+    if not HAS_OPENCV:
+        logger.warning(
+            f"OpenCV not available, using default FPS={default_fps}. "
+            "Install opencv-python for accurate FPS detection."
+        )
+        return default_fps
+
+    path = Path(video_path)
+    if not path.exists():
+        logger.warning(f"Video file not found: {path}, using default FPS={default_fps}")
+        return default_fps
+
+    try:
+        cap = cv2.VideoCapture(str(path))
+        if not cap.isOpened():
+            logger.warning(f"Could not open video: {path}, using default FPS={default_fps}")
+            return default_fps
+
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        cap.release()
+
+        # Sanity check - FPS should be reasonable (10-120)
+        if fps < 10 or fps > 120:
+            logger.warning(
+                f"Unusual FPS={fps} from {path.name}, using default FPS={default_fps}"
+            )
+            return default_fps
+
+        logger.info(f"Video FPS: {fps:.2f} (from {path.name})")
+        return fps
+
+    except Exception as e:
+        logger.warning(f"Error reading video FPS: {e}, using default FPS={default_fps}")
+        return default_fps
 
 
 # =============================================================================

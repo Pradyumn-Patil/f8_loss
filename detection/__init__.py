@@ -25,9 +25,14 @@ from .config import (
 from .data_loader import (
     load_cone_annotations, load_parquet_data, load_all_data,
     extract_ankle_positions, get_closest_ankle_per_frame,
-    validate_data_alignment, get_frame_data
+    validate_data_alignment, get_frame_data, get_video_fps
 )
 from .csv_exporter import CSVExporter, export_to_csv
+from .turning_zones import (
+    TurningZone, TurningZoneConfig, TurningZoneSet,
+    create_turning_zones, draw_turning_zone, draw_turning_zones,
+    START_ZONE_COLOR, GATE2_ZONE_COLOR, ZONE_HIGHLIGHT_COLOR,
+)
 
 __all__ = [
     # Detector classes
@@ -43,7 +48,11 @@ __all__ = [
     # Data loading
     'load_cone_annotations', 'load_parquet_data', 'load_all_data',
     'extract_ankle_positions', 'get_closest_ankle_per_frame',
-    'validate_data_alignment', 'get_frame_data',
+    'validate_data_alignment', 'get_frame_data', 'get_video_fps',
     # Export
     'CSVExporter', 'export_to_csv',
+    # Turning zones
+    'TurningZone', 'TurningZoneConfig', 'TurningZoneSet',
+    'create_turning_zones', 'draw_turning_zone', 'draw_turning_zones',
+    'START_ZONE_COLOR', 'GATE2_ZONE_COLOR', 'ZONE_HIGHLIGHT_COLOR',
 ]

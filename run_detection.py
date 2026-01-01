@@ -12,6 +12,7 @@ List available players:
 
 Run validation tests (compare detection vs ground truth):
     python run_detection.py --test
+    python run_detection.py --test --tolerance 2.0  # Custom tolerance (default: 1.5s)
     OR set TEST_MODE = True in the config section
 """
 import sys
@@ -26,6 +27,7 @@ from f8_loss import (
     CSVExporter,
     AppConfig,
     Figure8ConeDetector,
+    get_video_fps,
 )
 
 # Optional visualization (requires OpenCV)
@@ -81,7 +83,7 @@ PLAYERS = {
 
 # Options
 CREATE_VIDEO = False  # Set to True to create annotated video
-FPS = 30.0
+DEFAULT_FPS = 30.0  # Fallback FPS if video cannot be read (actual FPS is auto-detected)
 DETECTION_MODE = "standard"  # "standard", "strict", or "lenient"
 
 # ============================================================
@@ -90,7 +92,10 @@ DETECTION_MODE = "standard"  # "standard", "strict", or "lenient"
 TEST_MODE = False  # Set to True to run validation against ground truth
 GROUND_TRUTH_CSV = Path(__file__).parent / "ground_truth.csv"
 TEST_OUTPUT_DIR = Path(__file__).parent / "test_results"
-TEST_TOLERANCE = 0.5  # +/- seconds for matching events
+# Tolerance for matching detected events to ground truth.
+# Default 1.5s accounts for human annotation imprecision.
+# Can be overridden with --tolerance CLI argument.
+TEST_TOLERANCE = 1.5  # +/- seconds for matching events
 
 # ============================================================
 # HELPER FUNCTIONS
@@ -171,6 +176,14 @@ def process_player(player_name: str) -> int:
     print(f"  Pose records: {len(pose_df)}")
     print(f"  Cone records: {len(cone_df)}")
 
+    # Get actual FPS from video file (important: some videos are 25fps, others 30fps)
+    if video_path.exists():
+        fps = get_video_fps(str(video_path), default_fps=DEFAULT_FPS)
+        print(f"  Video FPS: {fps:.2f} (from video file)")
+    else:
+        fps = DEFAULT_FPS
+        print(f"  Video FPS: {fps:.2f} (default - video not found)")
+
     # 2. Create config
     print(f"\n[2/5] Setting up Figure-8 detection (mode: {DETECTION_MODE})...")
     if DETECTION_MODE == "strict":
@@ -180,11 +193,16 @@ def process_player(player_name: str) -> int:
     else:
         config = AppConfig.for_figure8()
 
-    config.fps = FPS
+    config.fps = fps
 
     # 3. Run detection (pass parquet dir for manual cone annotations)
     print("\n[3/5] Running detection...")
-    result = detect_ball_control(ball_df, pose_df, cone_df, config=config, fps=FPS, parquet_dir=str(parquet_paths["dir"]))
+    result = detect_ball_control(
+        ball_df, pose_df, cone_df,
+        config=config, fps=fps,
+        parquet_dir=str(parquet_paths["dir"]),
+        video_path=str(video_path) if video_path.exists() else None
+    )
 
     if not result.success:
         print(f"  ERROR: {result.error}")
@@ -264,6 +282,46 @@ def process_player(player_name: str) -> int:
     print(f"  Control %: {result.control_percentage:.1f}%")
     print()
 
+    # Detailed loss events with timestamps and event types
+    if result.events:
+        # Event type names for display
+        type_names = {
+            "boundary": "OUT_OF_BOUNDS",
+            "ball_behind": "BALL_BEHIND",
+            "loss_distance": "DISTANCE",
+            "loss_velocity": "VELOCITY",
+        }
+
+        print("LOSS EVENT DETAILS:")
+        print("-" * 60)
+        type_counts = {}
+        for event in result.events:
+            start_sec = event.start_timestamp
+            end_sec = event.end_timestamp if event.end_timestamp else start_sec
+            duration = event.duration_seconds
+            gate_info = f" near {event.gate_context}" if event.gate_context else ""
+
+            # Get event type name
+            event_type_val = event.event_type.value if event.event_type else "unknown"
+            event_type_name = type_names.get(event_type_val, event_type_val.upper())
+            type_counts[event_type_name] = type_counts.get(event_type_name, 0) + 1
+
+            print(f"  Event #{event.event_id}: {start_sec:.2f}s - {end_sec:.2f}s")
+            print(f"    Type: {event_type_name}")
+            print(f"    Duration: {duration:.2f}s | Severity: {event.severity}{gate_info}")
+
+        # Event type summary
+        if type_counts:
+            print()
+            print("EVENT TYPE SUMMARY:")
+            for type_name, count in sorted(type_counts.items()):
+                print(f"    {type_name}: {count}")
+        print()
+    else:
+        print("LOSS EVENT DETAILS:")
+        print("  No loss events detected - excellent ball control!")
+        print()
+
     # Cone setup
     if result.cone_roles:
         print("CONE SETUP:")
@@ -296,9 +354,12 @@ def list_players():
     print(f"Parquet directory: {PARQUET_BASE}")
 
 
-def run_test_mode() -> int:
+def run_test_mode(tolerance: float = TEST_TOLERANCE) -> int:
     """
     Run batch testing on all players with ground truth validation.
+
+    Args:
+        tolerance: Time tolerance in seconds for matching events (default from config)
 
     Returns:
         0 on success, 1 on error
@@ -308,6 +369,7 @@ def run_test_mode() -> int:
         create_test_result,
         generate_report,
         save_report,
+        save_csv_results,
         TestResult,
         OverallTestSummary
     )
@@ -315,6 +377,7 @@ def run_test_mode() -> int:
 
     print("\n" + "=" * 60)
     print("FIGURE-8 DETECTION - TEST MODE")
+    print(f"Tolerance: +/- {tolerance}s")
     print("=" * 60)
 
     # Load ground truth
@@ -374,9 +437,24 @@ def run_test_mode() -> int:
             config = AppConfig.with_lenient_detection()
         else:
             config = AppConfig.for_figure8()
-        config.fps = FPS
 
-        result = detect_ball_control(ball_df, pose_df, cone_df, config=config, fps=FPS, parquet_dir=str(parquet_paths["dir"]))
+        # Get video path for this player
+        video_file = PLAYERS.get(player_name)
+        video_path = VIDEO_DIR / video_file if video_file else None
+
+        # Get actual FPS from video file
+        if video_path and video_path.exists():
+            fps = get_video_fps(str(video_path), default_fps=DEFAULT_FPS)
+        else:
+            fps = DEFAULT_FPS
+        config.fps = fps
+
+        result = detect_ball_control(
+            ball_df, pose_df, cone_df,
+            config=config, fps=fps,
+            parquet_dir=str(parquet_paths["dir"]),
+            video_path=str(video_path) if video_path and video_path.exists() else None
+        )
 
         if not result.success:
             print(f"  SKIPPED: Detection failed: {result.error}")
@@ -390,7 +468,7 @@ def run_test_mode() -> int:
             player_name=player_name,
             detected_events=result.events,
             ground_truth_times=gt_times,
-            tolerance=TEST_TOLERANCE
+            tolerance=tolerance
         )
 
         results[player_name] = test_result
@@ -442,13 +520,36 @@ def run_test_mode() -> int:
         per_player_results=results
     )
 
-    # Generate and display report
-    report = generate_report(results, summary, TEST_TOLERANCE)
-    print("\n" + report)
+    # Save CSV results
+    summary_csv, events_csv = save_csv_results(results, summary, TEST_OUTPUT_DIR)
+    print(f"\n✓ Test results saved to CSV:")
+    print(f"  Summary: {summary_csv}")
+    print(f"  Events:  {events_csv}")
 
-    # Save report to file
-    report_path = save_report(report, TEST_OUTPUT_DIR)
-    print(f"\nReport saved to: {report_path}")
+    # Generate and save verbose text report (includes detailed FP/FN info)
+    report = generate_report(results, summary, tolerance)
+    report_path = save_report(report, TEST_OUTPUT_DIR, summary)
+    print(f"\n✓ Detailed text report saved:")
+    print(f"  Report:  {report_path}")
+    print(f"  Latest:  {TEST_OUTPUT_DIR / 'LATEST_report.txt'}")
+
+    # Generate and display brief summary
+    print("\n" + "=" * 60)
+    print("TEST SUMMARY")
+    print("=" * 60)
+    print(f"Videos processed: {videos_processed}/{len(players_to_test)}")
+    print(f"Ground truth events: {total_gt}")
+    print(f"Detected events: {total_det}")
+    print()
+    print(f"True Positives:  {total_tp}")
+    print(f"False Positives: {total_fp}")
+    print(f"False Negatives: {total_fn}")
+    print()
+    print(f"Precision: {overall_precision*100:.1f}%")
+    print(f"Recall:    {overall_recall*100:.1f}%")
+    print(f"F1 Score:  {overall_f1*100:.1f}%")
+    print("=" * 60)
+    print(f"\nFor detailed FP/FN breakdown, see: {TEST_OUTPUT_DIR / 'LATEST_report.txt'}")
 
     if skipped_players:
         print(f"\nSkipped players: {', '.join(skipped_players)}")
@@ -456,15 +557,30 @@ def run_test_mode() -> int:
     return 0
 
 
+def parse_tolerance_arg() -> float:
+    """Parse --tolerance argument from command line."""
+    tolerance = TEST_TOLERANCE
+    for i, arg in enumerate(sys.argv):
+        if arg == "--tolerance" and i + 1 < len(sys.argv):
+            try:
+                tolerance = float(sys.argv[i + 1])
+                print(f"Using custom tolerance: {tolerance}s")
+            except ValueError:
+                print(f"Warning: Invalid tolerance value '{sys.argv[i + 1]}', using default {TEST_TOLERANCE}s")
+    return tolerance
+
+
 def main():
     """Main entry point."""
     # Check for test mode first
     if TEST_MODE:
-        return run_test_mode()
+        tolerance = parse_tolerance_arg()
+        return run_test_mode(tolerance=tolerance)
 
     # Check for --test command line argument
     if len(sys.argv) >= 2 and sys.argv[1] == "--test":
-        return run_test_mode()
+        tolerance = parse_tolerance_arg()
+        return run_test_mode(tolerance=tolerance)
 
     if len(sys.argv) < 2:
         print(__doc__)
@@ -479,18 +595,144 @@ def main():
     if arg == "--all":
         print("Processing all players...")
         results = {}
-        for player in PLAYERS:
+        all_player_events = {}  # Store loss events for summary
+
+        total_players = len(PLAYERS)
+        for idx, player in enumerate(PLAYERS, 1):
+            print(f"\n[{idx}/{total_players}] Processing {player}...", end=" ")
             try:
-                ret = process_player(player)
-                results[player] = "SUCCESS" if ret == 0 else "FAILED"
+                # Get paths and check if data exists
+                parquet_paths = get_parquet_paths(player)
+                if not all(p.exists() for p in [parquet_paths["ball"], parquet_paths["pose"], parquet_paths["cone"]]):
+                    print("SKIPPED (missing data)")
+                    results[player] = "SKIPPED (missing data)"
+                    continue
+
+                # Load and process
+                ball_df = load_parquet_data(str(parquet_paths["ball"]))
+                pose_df = load_parquet_data(str(parquet_paths["pose"]))
+                cone_df = load_parquet_data(str(parquet_paths["cone"]))
+
+                if DETECTION_MODE == "strict":
+                    config = AppConfig.with_strict_detection()
+                elif DETECTION_MODE == "lenient":
+                    config = AppConfig.with_lenient_detection()
+                else:
+                    config = AppConfig.for_figure8()
+
+                # Get video path for this player
+                video_file = PLAYERS.get(player)
+                video_path = VIDEO_DIR / video_file if video_file else None
+
+                # Get actual FPS from video file
+                if video_path and video_path.exists():
+                    fps = get_video_fps(str(video_path), default_fps=DEFAULT_FPS)
+                else:
+                    fps = DEFAULT_FPS
+                config.fps = fps
+
+                result = detect_ball_control(
+                    ball_df, pose_df, cone_df,
+                    config=config, fps=fps,
+                    parquet_dir=str(parquet_paths["dir"]),
+                    video_path=str(video_path) if video_path and video_path.exists() else None
+                )
+
+                if result.success:
+                    num_events = len(result.events)
+                    print(f"OK ({num_events} loss event{'s' if num_events != 1 else ''})")
+                    results[player] = "SUCCESS"
+                    all_player_events[player] = result.events
+
+                    # Export CSVs
+                    output_dir = OUTPUT_BASE / player
+                    output_dir.mkdir(parents=True, exist_ok=True)
+                    exporter = CSVExporter()
+                    exporter.export_events(result, str(output_dir / "loss_events.csv"))
+                    exporter.export_frame_analysis(result, str(output_dir / "frame_analysis.csv"))
+                    if result.gate_passages:
+                        exporter.export_gate_passages(result, str(output_dir / "gate_passages.csv"))
+                    if result.cone_roles:
+                        exporter.export_cone_roles(result, str(output_dir / "cone_roles.csv"))
+                else:
+                    print(f"FAILED: {result.error}")
+                    results[player] = f"FAILED: {result.error}"
             except Exception as e:
+                print(f"ERROR: {e}")
                 results[player] = f"ERROR: {e}"
 
-        print("\n" + "=" * 60)
+        # Print summary
+        print("\n" + "=" * 70)
         print("BATCH PROCESSING COMPLETE")
-        print("=" * 60)
+        print("=" * 70)
+
+        # Status summary
+        print("\nPROCESSING STATUS:")
+        print("-" * 50)
+        success_count = sum(1 for s in results.values() if s == "SUCCESS")
+        failed_count = len(results) - success_count
         for player, status in results.items():
-            print(f"  {player}: {status}")
+            status_icon = "✓" if status == "SUCCESS" else "✗"
+            print(f"  {status_icon} {player}: {status}")
+        print(f"\nTotal: {success_count} succeeded, {failed_count} failed/skipped")
+
+        # Loss events summary with event type breakdown
+        print("\n" + "=" * 70)
+        print("LOSS OF CONTROL DETECTION SUMMARY")
+        print("=" * 70)
+
+        # Event type names for display
+        type_names = {
+            "boundary": "OUT_OF_BOUNDS",
+            "ball_behind": "BALL_BEHIND",
+            "loss_distance": "DISTANCE",
+            "loss_velocity": "VELOCITY",
+        }
+
+        total_events = 0
+        type_counts = {}
+
+        for player, events in sorted(all_player_events.items()):
+            total_events += len(events)
+            print(f"\n{player.upper()}: {len(events)} loss event(s)")
+            if events:
+                print("-" * 60)
+                for event in events:
+                    start_sec = event.start_timestamp
+                    end_sec = event.end_timestamp if event.end_timestamp else start_sec
+                    duration = event.duration_seconds
+                    gate_info = f" near {event.gate_context}" if event.gate_context else ""
+
+                    # Get event type name
+                    event_type_val = event.event_type.value if event.event_type else "unknown"
+                    event_type_name = type_names.get(event_type_val, event_type_val.upper())
+
+                    # Track type counts
+                    type_counts[event_type_name] = type_counts.get(event_type_name, 0) + 1
+
+                    print(f"  #{event.event_id}: {start_sec:.2f}s - {end_sec:.2f}s "
+                          f"[{event_type_name}] (duration: {duration:.2f}s{gate_info})")
+            else:
+                print("  No loss events - excellent ball control!")
+
+        print("\n" + "=" * 70)
+        print("EVENT TYPE BREAKDOWN")
+        print("=" * 70)
+        if type_counts:
+            for type_name, count in sorted(type_counts.items()):
+                pct = (count / total_events * 100) if total_events > 0 else 0
+                bar = "█" * int(pct / 5)  # Scale bar to 20 chars max
+                print(f"  {type_name:15s}: {count:3d} ({pct:5.1f}%) {bar}")
+        else:
+            print("  No events detected")
+
+        print("\n" + "-" * 70)
+        print(f"TOTAL: {total_events} loss events across {len(all_player_events)} players")
+        print("-" * 70)
+
+        print(f"\n📁 Results saved to: {OUTPUT_BASE.resolve()}/")
+        print("   Each player has: loss_events.csv, frame_analysis.csv, gate_passages.csv, cone_roles.csv")
+
         return 0
 
     # Single player

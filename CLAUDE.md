@@ -38,7 +38,8 @@ f8_loss/
 │   ├── data_structures.py        # Data models, enums, classes
 │   ├── data_loader.py            # Parquet/JSON loading
 │   ├── config.py                 # Configuration classes
-│   └── csv_exporter.py           # CSV export functionality
+│   ├── csv_exporter.py           # CSV export functionality
+│   └── turning_zones.py          # Elliptical turning zones for turn detection
 │
 ├── annotation/                   # FOLDER 2: Cone annotation & visualization
 │   ├── cone_annotator.py         # Interactive GUI annotation tool
@@ -110,7 +111,7 @@ cone.parquet ──> Figure8ConeDetector.identify_cone_roles() |
 - `detection/ball_control_detector.py` - `detect_ball_control()` convenience function
 - `detection/ball_control_detector.py` - `BallControlDetector.detect()` main orchestrator
 
-**Detection logic location:** The `detect_loss()` method in `detection/ball_control_detector.py` (lines 328-386) contains all loss detection logic. Modify ONLY this method to implement detection algorithms.
+**Detection logic location:** The `detect_loss()` method in `detection/ball_control_detector.py` (starts at line 533) contains all loss detection logic. Modify ONLY this method to implement detection algorithms.
 
 **BallControlDetector** delegates to:
 - `detection/figure8_cone_detector.py` - Cone role identification + gate passage tracking
@@ -131,6 +132,9 @@ from f8_loss.annotation import ConeAnnotator, DrillVisualizer
 
 # Video generation
 from f8_loss.video.annotate_with_json_cones import annotate_video_with_json_cones
+
+# Turning zones
+from f8_loss.detection.turning_zones import create_turning_zones, TurningZoneSet
 ```
 
 ### Data Structures (`detection/data_structures.py`)
@@ -149,6 +153,11 @@ from f8_loss.video.annotate_with_json_cones import annotate_video_with_json_cone
 - `ControlState`: CONTROLLED, TRANSITION, LOST, RECOVERING, UNKNOWN
 - `DrillPhase`: AT_START, APPROACHING_G1, PASSING_G1, BETWEEN_GATES, etc.
 - `DrillDirection`: FORWARD, BACKWARD, STATIONARY
+
+**Turning Zone Structures (`detection/turning_zones.py`):**
+- `TurningZone`: Elliptical zone with point-in-zone detection via ellipse equation
+- `TurningZoneConfig`: Configuration for zone sizes and camera perspective stretch factors
+- `TurningZoneSet`: Container for START and GATE2 zones with convenience methods
 
 ### Configuration (`detection/config.py`)
 
@@ -202,6 +211,24 @@ Key detection thresholds in `DetectionConfig`:
 - **Control scoring**: Weighted combination: 60% distance, 25% velocity, 15% stability
 - **Gate detection**: Line segment intersection between consecutive ball positions and gate line
 - **Visualization optional**: OpenCV import wrapped in try/except; detection works without it
+
+## CRITICAL: Visualization and Detection Logic Consistency
+
+**The visualization logic in `video/annotate_with_json_cones.py` MUST use the same thresholds and logic as the detection in `detection/ball_control_detector.py`.**
+
+The video annotation serves as a **debug tool** - what you see in the annotated video (FRONT/BEHIND labels, colors) should match exactly what the detection algorithm calculates. If they differ, debugging becomes impossible.
+
+**Synchronized thresholds:**
+
+| Parameter | Detection File | Visualization File | Value |
+|-----------|---------------|-------------------|-------|
+| Ball-behind threshold | `ball_control_detector.py:_behind_threshold` | `annotate_with_json_cones.py:BALL_POSITION_THRESHOLD` | 20.0px |
+| Movement threshold | `ball_control_detector.py:_movement_threshold` | `annotate_with_json_cones.py:MOVEMENT_THRESHOLD` | 3.0px |
+
+**When modifying detection logic:**
+1. Update the threshold/logic in `detection/ball_control_detector.py`
+2. Update the SAME threshold/logic in `video/annotate_with_json_cones.py`
+3. Regenerate annotated video to verify visually
 
 ## Video Generation Requirements
 
